@@ -2,17 +2,20 @@
 @Author: Shital Bajait
 @Date: 21-02-2022 13:56:00
 @Last Modified by: Shital Bajait 
-@Last Modified time: 21-02-2022 13:56:00
+@Last Modified time: 22-02-2022 12:56:00
 @Title : create user for EMployee Payroll 
 """
 from datetime import date
 from typing import Optional
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
+import pydantic
+
+
 app = FastAPI()
 
 db={}
-
+    
 class Employee(BaseModel):
     Name : Optional[str] = None
     Profile_image: Optional[str] = None
@@ -22,7 +25,30 @@ class Employee(BaseModel):
     Start_Date : Optional[date] = None
     Notes : Optional[str] = None
 
+   
+    @pydantic.validator("Salary")
+    @classmethod
+    def Salary_valid(cls, Salary):
+        if not Salary>10000.00 and Salary<400000.00:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'Salary should be in range 10000 to 400000')
+        return Salary
 
+    @pydantic.validator("Department")
+    @classmethod
+    def Department_valid(cls, Department):
+        chars = ["HR","IT","Sales","Account","Marketing" ]
+        if Department not in chars:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'Invalid Department name')
+        return Department      
+        
+    @pydantic.validator("Gender")
+    @classmethod
+    def Gender_valid(cls, Gender):
+        chars = ["Female" , "Male", "F", "M" ]
+        if Gender not in chars:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'Gender should be Male or Female')
+        return Gender
+        
 @app.get('/')
 def index():
     return{"Employee Payroll APP"}
