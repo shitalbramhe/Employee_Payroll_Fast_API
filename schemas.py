@@ -2,21 +2,22 @@ from typing import Optional
 from pydantic import BaseModel
 from datetime import date
 import pydantic
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import HTTPException, status
+
 
 class Employee(BaseModel):
     Name : Optional[str] = None
     Profile_image: Optional[str] = None
     Gender : Optional[str] = None
     Department : Optional[str] = None
-    Salary : Optional[float] = None
+    Salary : Optional[int] = None
     Start_Date : Optional[date] = None
     Notes : Optional[str] = None
 
     @pydantic.validator("Salary")
     @classmethod
     def Salary_valid(cls, Salary):
-        if not Salary>10000.00 and Salary<400000.00:
+        if not Salary>10000 and Salary<400000:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'Salary should be in range 10000 to 400000')
         return Salary
 

@@ -11,12 +11,20 @@ from fastapi import FastAPI, HTTPException, status
 import jwt_auth
 from schemas import Employee, Token, User
 from fastapi import Depends, FastAPI, HTTPException, status
+import model
+from database import SessionLocal,engine
+from sqlalchemy.orm import Session
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-
+model.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
-db={}
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -44,60 +52,52 @@ async def read_users_me(current_user: User = Depends(jwt_auth.get_current_active
 
 
 @app.post('/add_employee/{Employee_id}')
-def add_employee_data(Employee_id: int,employee: Employee,current_user: User = Depends(jwt_auth.get_current_active_user)):
-    db[Employee_id] = {"Name": employee.Name,"Profile_image": employee.Profile_image,"Gender": employee.Gender,
-                       "Department": employee.Department,"Salary": employee.Salary,
-                       "Start_Date": employee.Start_Date,"Notes": employee.Notes}
-    return {"message","Employee Details added successfully"}
+def add_employee_data(Employee_id: int,employee: Employee,current_user: User = Depends(jwt_auth.get_current_active_user),db:Session=Depends(get_db)):
+    u=model.User(id=Employee_id, Name = employee.Name,Profile_image= employee.Profile_image,Gender=employee.Gender,
+                Department= employee.Department, Salary =employee.Salary,Start_Date= employee.Start_Date,Notes=employee.Notes)
+    db.add(u)
+    db.commit()
+    return u
 
 @app.get('/get_employee/{Employee_id}')
-def single_employee_data(Employee_id: int,current_user: User = Depends(jwt_auth.get_current_active_user)):
-    """
-            Description:
-                Function get single Employee data
-            Parameter:
-                None
-            Return:
-                None
-        """
-    return db[Employee_id]
+def single_employee_data(Employee_id: int,current_user: User = Depends(jwt_auth.get_current_active_user),db:Session=Depends(get_db)):
+    u=db.query(model.User).filter(model.User.id == Employee_id).first()
+    return u
 
 @app.get('/get_all_employee')
-def get_all_employee(current_user: User = Depends(jwt_auth.get_current_active_user)):
-    return db
+def get_all_employee(current_user: User = Depends(jwt_auth.get_current_active_user),db:Session=Depends(get_db)):
+    data = db.query(model.User).all()
+    return data
 
 @app.delete('/delete_employee/{Employee_id}')
-def delete_Employee(Employee_id: int,current_user: User = Depends(jwt_auth.get_current_active_user)):
-    if Employee_id not in db:
-        return {"error","employee is not present in database"}
-    del db[Employee_id]
-    return {"message","Successfully deleted Employee details"}
+def delete_Employee(Employee_id: int,current_user: User = Depends(jwt_auth.get_current_active_user),db:Session=Depends(get_db)):
+    user = db.query(model.User).filter(model.User.id == Employee_id)
+    if not user.first():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{Employee_id} not found")
+
+    user.delete(synchronize_session=False)
+    db.commit()
+    return {"data delete successfully"}
+    
 
 @app.put('/update_employee_data/{Employee_id}')
-def update_employee_name(Employee_id: int, employee:Employee,current_user: User = Depends(jwt_auth.get_current_active_user)):
-    if Employee_id not in db:
-        return {"error":"Employee details not found"}
-
-    if employee.Name is not None:
-        db[Employee_id]["Name"] = employee.Name
-        return {"message":"Employee name updated successfully"}
-
-    if employee.Profile_image is not None:
-        db[Employee_id]["Profile_image"] = employee.Profile_image
-        return {"message":"Employee Profile_image updated successfully"}
-
-    if employee.Gender is not None:
-        db[Employee_id]["Gender"] = employee.Gender
-        return {"message":"Employee Gender updated successfully"}
-
-    if employee.Department is not None:
-        db[Employee_id]["Department"] = employee.Department
-        return {"message":"Employee Department updated successfully"}
-
-    if employee.Salary is not None:
-        db[Employee_id]["Salary"] = employee.Salary
-        return {"message":"Employee Salary updated successfully"}
-
-    if employee.Start_Date is not None:
-        db[Employee_id]["Start_Date"] = employee.Start_Date
-        return {"message":"Employee Start_Date updated successfully"}  
+def update_employee(Employee_id: int, employee:Employee,current_user: User = Depends(jwt_auth.get_current_active_user),db:Session=Depends(get_db)):
+    try:
+        u=db.query(model.User).filter(model.User.id == Employee_id).first()
+        if employee.Name is not None:
+            u.Name = employee.Name
+        if employee.Profile_image is not None:
+            u.Profile_image = employee.Profile_image
+        if employee.Gender is not None:
+            u.Gender = employee.Gender
+        if employee.Department is not None:
+            u.Department = employee.Department
+        if employee.Salary is not None:
+            u.Salary = employee.Salary
+        if employee.Start_Date is not None:
+            u.Start_Date = employee.Start_Date
+        db.add(u)
+        db.commit()
+        return u
+    except:
+        return HTTPException(status_code=404,detail="employee is not found")
